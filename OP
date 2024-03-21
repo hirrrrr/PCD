@@ -1,0 +1,193 @@
+from collections import defaultdict
+
+
+def print_table(T):
+    t = list(T.keys())
+    for k, v in T.items():
+        row = [k]
+        for term in t:
+            row.append(T[k][term])
+        print(row)
+
+
+def is_terminal(char: str) -> bool:
+    return not char.isupper() and char != '⋖' and char != '⋗' and char != '≐'
+
+
+def is_expr(inp: str, table: dict, G: dict) -> bool:
+    inp += '$'
+    indx = 0
+    stack = ['$']
+    ans = [['Stack', 'Operation', 'Input']]
+
+    while True:
+        stackT: str = ''
+        tFlag: bool = True
+
+        if not is_terminal(stack[-1]):
+            stackT = stack[-2]
+            tFlag = False
+        else:
+            stackT = stack[-1]
+
+        if stackT == inp[indx] == '$':
+            ans.append([''.join(stack), 'ACCEPT', inp[indx:]])
+            return True, ans
+
+        symbol = table[stackT][inp[indx]]
+        ans.append([''.join(stack), symbol, inp[indx:]])
+
+        if symbol == '≐':
+            stack += [inp[indx]]
+            indx += 1
+
+        elif symbol == '⋖':
+            if not tFlag:
+                stack.insert(-1, symbol)
+                tFlag = True
+            else:
+                stack += [symbol]
+            stack += [inp[indx]]
+            indx += 1
+
+        elif symbol == '⋗':
+            contents = ''
+
+            while stack[-1] != '⋖':
+                contents = stack.pop() + contents
+            stack.pop()
+            found = False
+            for LHS, RHS in G.items():
+                for prod in RHS:
+                    if contents == prod:
+                        stack += [LHS]
+                        found = True
+                        break
+                    elif len(prod) == len(contents) == 3 and prod[1] == contents[1]:
+                        stack += [LHS]
+                        found = True
+                        break
+                if found:
+                    break
+            else:
+                return False, []
+        else:
+            return False, []
+
+
+def get_terminals(G: dict) -> list:
+    t = []
+    for k, v in G.items():
+        for p in v:
+            if len(p) == 1 and not p.isupper():
+                t += [p]
+            else:
+                for char in p:
+                    if not char.isupper():
+                        t += [char]
+    return t + ['$']
+
+
+def create_table(G: dict, L: dict, T: dict, start: str) -> dict:
+    t = get_terminals(G)
+    ans = defaultdict(dict)
+
+    for term in t:
+        ans[term]
+
+    for term in t:
+        if term == '$':
+            ans['$'][term] = '-'
+        else:
+            ans['$'][term] = '⋖'
+            ans[term]['$'] = '⋗'
+
+    for k, v in G.items():
+        for p in v:
+            if len(p) > 1:
+
+                for i in range(len(p) - 1):
+                    if not p[i].isupper() and not p[i + 1].isupper():
+                        ans[p[i]][p[i + 1]] = '≐'
+                    if i < len(p) - 2:
+                        if not p[i].isupper() and not p[i + 2].isupper() and p[i + 1].isupper() == True:
+                            ans[p[i]][p[i + 2]] = '≐'
+
+                    if is_terminal(p[i]) and not is_terminal(p[i + 1]):
+                        for char in L[p[i + 1]]:
+                            ans[p[i]][char] = '⋖'
+                    if not is_terminal(p[i]) and is_terminal(p[i + 1]):
+                        for char in T[p[i]]:
+                            ans[char][p[i + 1]] = '⋗'
+
+    for k, v in ans.items():
+        for term in t:
+            ans[k].setdefault(term, '-')
+
+    return ans
+
+
+def lead(G: dict, ans=defaultdict(list)) -> dict:
+    for k, v in G.items():
+        for p in v:
+            if len(p) == 1:
+                if not p.isupper():
+                    ans[k] += [p]
+                else:
+                    ans[k] += ans[p]
+            else:
+                if not p[0].isupper():
+                    ans[k] += [p[0]]
+                elif not p[1].isupper():
+                    ans[k] += [p[1]]
+    return ans
+
+
+def trail(G: dict, ans=defaultdict(list)) -> dict:
+    for k, v in G.items():
+        for p in v:
+            if len(p) == 1:
+                if not p.isupper():
+                    ans[k] += [p]
+                else:
+                    ans[k] += ans[p]
+            else:
+                if not p[-1].isupper():
+                    ans[k] += [p[-1]]
+                elif not p[-2].isupper():
+                    ans[k] += [p[-2]]
+    return ans
+
+
+def main() -> None:
+    G: dict = {'F': ['i'], 'T': ['T*F', 'F'], 'E': ['E+T', 'T']}
+    start: str = 'S'
+    inp = 'i+i*i'
+
+    L: dict = lead(G)
+    print('\nLeading :\n')
+    for k, v in L.items():
+        print("{k} : {v}".format(k=k, v=v))
+
+    T: dict = trail(G)
+    print('\n\nTrailing :\n')
+    for k, v in T.items():
+        print("{k} : {v}".format(k=k, v=v))
+
+    table: dict = create_table(G, L, T, start)
+    print('\n\nTable :\n')
+    print_table(table)
+
+    res = is_expr(inp, table, G)
+
+    if res[0]:
+        print('\nGiven expression is valid for the grammar.\n')
+        print('Parsing :\n')
+        for row in res[1]:
+            print(row)
+    else:
+        print('\nGiven expression is invalid for the grammar.\n')
+
+
+if __name__ == '__main__':
+    main()
