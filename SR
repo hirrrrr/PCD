@@ -1,0 +1,52 @@
+def shiftReduce(G,input,start_symbol):
+  
+    parseTable=[]
+    index=0
+    
+    stack='$'
+    operation=''
+    
+    parseTable.append([stack, ' - ',input])
+  
+    while True:
+        if len(stack) > 0:
+            if index == len(input)-1 and len(stack) == 2:
+                if stack[1] == start_symbol:
+                    print("Valid")
+                else:
+                    print("Invalid")
+    
+                return parseTable
+  
+            reduceOccurs=False
+            
+            for lhs,rhs in G.items():
+                for prod in rhs:
+                    if prod == stack[-len(prod):]:
+                        reduceOccurs = True
+                        operation = 'Reduce'
+                        stack = stack[0 : -len(prod)] + lhs
+                        inp = input[index:]
+                        break
+                    
+                if reduceOccurs:
+                    break
+            
+            if not reduceOccurs:
+                stack += input[index]
+                index += 1
+                operation = 'Shift'
+                inp = input[index:]
+                
+            row = [stack,operation,inp]
+            parseTable.append(row)
+
+
+G = {'E' : ['E+E', 'E*E', 'i']}
+
+table = shiftReduce(G,'i*i+i$','E')
+
+for row in table:
+    print(row)
+    
+    
