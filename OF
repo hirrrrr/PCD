@@ -1,0 +1,182 @@
+from collections import defaultdict
+from prettytable import PrettyTable
+
+import networkx as nx
+from networkx.algorithms import bipartite
+import matplotlib.pyplot as plt
+
+
+def findFunc(G : nx.classes.digraph.DiGraph, terminals : list) -> dict :
+    ans = {'f' : {}, 'g' : {}}
+    nodes = G.nodes()
+
+    for node in nodes :
+        fList = list(nx.all_simple_paths(G, source = node, target = 'f$'))
+        gList = list(nx.all_simple_paths(G, source = node, target = 'g$'))
+
+        fMaxLen, gMaxLen = 0, 0
+
+        if fList != [] :
+            fMaxLen = len(max(fList, key = len)) - 1
+
+        if gList != [] :
+            gMaxLen = len(max(gList, key = len)) - 1
+
+        if node[0] == 'f' :
+            ans['f'][node[1]] = max(fMaxLen, gMaxLen)
+
+        else :
+            ans['g'][node[1]] = max(fMaxLen, gMaxLen)
+
+    return ans
+
+def displayGraph(T, color='gold'):
+    
+    terminals = list(T.keys())
+    
+    f = ['f' + term for term in terminals]
+    g = ['g' + term for term in terminals]
+    
+    G = nx.DiGraph()
+    
+    G.add_nodes_from(f, bipartite = 0)
+    G.add_nodes_from(g, bipartite = 1)
+
+    colors = ['blue', 'red', 'green', 'orange', 'purple', 'teal', 'lime', 'purple']
+    edgeColor = {}
+    indx = 0
+    
+    for K, V in T.items():
+        for k, v in V.items():
+    
+            if T[K][k] == '>':
+                G.add_edges_from([('f' + K, 'g' + k)])
+                edgeColor[('f' + K, 'g' + k)] = colors[indx]
+            
+            elif T[K][k] == '<':
+                G.add_edges_from([('g' + k, 'f' + K)])
+                edgeColor[('g' + k, 'f' + K)] = colors[indx]
+        
+        indx = (indx + 1) % len(colors)
+    
+    pos = nx.bipartite_layout(G, nodes=f)
+    nx.draw(G, pos, with_labels=True, node_color=color, node_size=2000, font_size=12,
+            edge_color=[edgeColor.get(E, 'black') for E in G.edges()], width=2.0)
+    
+    ax = plt.gcf()
+    ax.set_facecolor('gray')
+    
+    return G
+
+def print_table(T):
+    t = list(T.keys())
+    for k, v in T.items():
+        row = [k]
+        for term in t:
+            row.append(T[k][term])
+        print(row)
+
+
+def isTerminal(char: str) -> bool:
+    return not char.isupper() and char != '<' and char != '>' and char != '='
+
+def getTerminals(G: dict) -> list:
+    t = []
+    for k, v in G.items():
+        for p in v:
+            if len(p) == 1 and not p.isupper():
+                t += [p]
+            else:
+                for char in p:
+                    if not char.isupper():
+                        t += [char]
+    return t + ['$']
+
+def createTable(G: dict, L: dict, T: dict, start: str) -> dict:
+    t = getTerminals(G)
+    ans = defaultdict(dict)
+    for term in t:
+        ans[term]
+    for term in t:
+        if term == '$':
+            ans['$'][term] = '-'
+        else:
+            ans['$'][term] = '<'
+            ans[term]['$'] = '>'
+    for k, v in G.items():
+        for p in v:
+            if len(p) > 1:
+                for i in range(len(p) - 1):
+                    if not p[i].isupper() and not p[i + 1].isupper():
+                        ans[p[i]][p[i + 1]] = '='
+                    if i < len(p) - 2:
+                        if not p[i].isupper() and not p[i + 2].isupper() and p[i + 1].isupper() == True:
+                            ans[p[i]][p[i + 2]] = '='
+                    if isTerminal(p[i]) and not isTerminal(p[i + 1]):
+                        for char in L[p[i + 1]]:
+                            ans[p[i]][char] = '<'
+                    if not isTerminal(p[i]) and isTerminal(p[i + 1]):
+                        for char in T[p[i]]:
+                            ans[char][p[i + 1]] = '>'
+    for k, v in ans.items():
+        for term in t:
+            ans[k].setdefault(term, '-')
+    return ans
+
+def lead(G: dict, ans=defaultdict(list)) -> dict:
+    for k, v in G.items():
+        for p in v:
+            if len(p) == 1:
+                if not p.isupper():
+                    ans[k] += [p]
+                else:
+                    ans[k] += ans[p]
+            else:
+                if not p[0].isupper():
+                    ans[k] += [p[0]]
+                elif not p[1].isupper():
+                    ans[k] += [p[1]]
+    return ans
+
+def trail(G: dict, ans=defaultdict(list)) -> dict:
+    for k, v in G.items():
+        for p in v:
+            if len(p) == 1:
+                if not p.isupper():
+                    ans[k] += [p]
+                else:
+                    ans[k] += ans[p]
+            else:
+                if not p[-1].isupper():
+                    ans[k] += [p[-1]]
+                elif not p[-2].isupper():
+                    ans[k] += [p[-2]]
+    return ans
+
+def main() -> None:
+   
+    G: dict = {'F': ['i'], 'T': ['T*F', 'F'], 'E': ['E+T', 'T']}
+    start: str = 'S'
+    inp = '(a,a)$'
+    
+    L: dict = lead(G)
+    print('\nLeading :\n')
+    for k, v in L.items():
+        print("{k} : {v}".format(k=k, v=v))
+    
+    T: dict = trail(G)
+    print('\n\nTrailing :\n')
+    for k, v in T.items():
+        print("{k} : {v}".format(k=k, v=v))
+    
+    table: dict = createTable(G, L, T, start)
+    print('\n\nTable :\n')
+    print_table(table)
+    
+    print('\n\nDisplaying the graph :\n')
+    graph = displayGraph(table, 'silver')
+    func = findFunc(graph, list(table.keys()))
+    print(func)
+
+if __name__ == '__main__':
+    main()
