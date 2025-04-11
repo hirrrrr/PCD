@@ -1,0 +1,137 @@
+/*
+    Hello World Program in C
+*/
+
+#include <stdio.h>
+#include <cuda.h>
+
+__global__ void hwkernel() {
+    printf("Hello world!\n");
+}
+
+int main() {
+    cudaFree(0);
+    cudaDeviceReset();
+    hwkernel<<<1, 1>>>();
+
+    cudaError_t err = cudaDeviceSynchronize();
+    if (err != cudaSuccess){
+        printf("CUDA Error: %s\n", cudaGetErrorString(err));
+    }
+    return 0;
+}
+////////////////////////////////////////////////////////
+#include <iostream>
+#include <cuda_runtime.h>
+
+__global__ void sumKernel(int *arr, int *sum, int N) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx < N) {
+        atomicAdd(sum, arr[idx]); // Safely add array values to sum
+    }
+}
+
+int main() {
+    const int N = 10;
+    int h_arr[N] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    int h_sum = 0;
+    
+    int *d_arr, *d_sum;
+    
+    cudaMalloc(&d_arr, N * sizeof(int));
+    cudaMalloc(&d_sum, sizeof(int));
+
+    cudaMemcpy(d_arr, h_arr, N * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_sum, &h_sum, sizeof(int), cudaMemcpyHostToDevice);
+
+    sumKernel<<<1, N>>>(d_arr, d_sum, N);
+    
+    cudaMemcpy(&h_sum, d_sum, sizeof(int), cudaMemcpyDeviceToHost);
+    
+    std::cout << "Sum: " << h_sum << std::endl; // Should print 55
+
+    cudaFree(d_arr);
+    cudaFree(d_sum);
+
+    return 0;
+}
+////////////////////////////////////////////////
+
+#include <stdio.h>
+#include <cuda.h>
+
+#define N 100000000
+
+__global__ void VecAdd(float* A, float* B, float* C, int N1) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N1) {
+        C[i] = A[i] + B[i];
+    }
+}
+
+int main() {
+    float* h_A = (float*)malloc(N * sizeof(float));
+    float* h_B = (float*)malloc(N * sizeof(float));
+    float* h_C = (float*)malloc(N * sizeof(float));
+
+    // Initialize h_A and h_B with some values
+    for (int i = 0; i < N; i++) {
+        h_A[i] = i;
+        h_B[i] = i * 2;
+    }
+
+    /*for (int i = 0; i < N; i++) {
+        printf("\n%f %f\n", h_A[i], h_B[i]);
+    }*/
+    float* d_A;
+    cudaMalloc(&d_A, N * sizeof(float));
+    float* d_B;
+    cudaMalloc(&d_B, N * sizeof(float));
+    float* d_C;
+    cudaMalloc(&d_C, N * sizeof(float));
+
+    // Create CUDA events
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    // Start recording time
+    cudaEventRecord(start);
+
+    cudaMemcpy(d_A, h_A, N * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, h_B, N * sizeof(float), cudaMemcpyHostToDevice);
+
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
+
+    // Invoke kernel
+    VecAdd<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
+
+    // copy result back to host
+    cudaMemcpy(h_C, d_C, N * sizeof(float), cudaMemcpyDeviceToHost);
+
+     // Stop recording time
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+
+    // Print the results
+    /*for (int i = 0; i < N; i++) {
+        printf("C[%d] = %f\n", i, h_C[i]);
+    }*/
+    cudaError_t err = cudaDeviceSynchronize();
+    if (err != cudaSuccess){
+        printf("CUDA Error: %s\n", cudaGetErrorString(err));
+    }
+    // Cleanup
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+    free(h_A);
+    free(h_B);
+    free(h_C);
+
+    float parallel_elapsed_time = 0;
+    cudaEventElapsedTime(&parallel_elapsed_time, start, stop);
+
+    printf("Kernel execution time: %f ms\n", parallel_elapsed_time);
+}
